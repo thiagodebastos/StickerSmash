@@ -1,10 +1,16 @@
+import domtoimage from "dom-to-image";
 import * as ImagePicker from "expo-image-picker";
 import * as MediaLibrary from "expo-media-library";
+import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import * as React from "react";
 import { useRef, useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { Platform, StyleSheet, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import {
+  SafeAreaProvider,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import { captureRef } from "react-native-view-shot";
 import Button from "./components/Button";
 import CircleButton from "./components/CircleButton";
@@ -14,11 +20,17 @@ import EmojiSticker from "./components/EmojiSticker";
 import IconButton from "./components/IconButton";
 import ImageViewer from "./components/ImageViewer";
 
+SplashScreen.preventAutoHideAsync();
+setTimeout(SplashScreen.hideAsync, 500);
+
 const PlaceholderImage = require("./assets/images/background-image.png");
 
-export default function App() {
-  const imageRef = useRef(null);
+function HomePage() {
   const [status, requestPermission] = MediaLibrary.usePermissions();
+  const insets = useSafeAreaInsets();
+
+  const imageRef = useRef(null);
+
   const [selectedImage, setSelectedImage] = useState<string | undefined>(
     undefined,
   );
@@ -46,18 +58,37 @@ export default function App() {
   }
 
   async function onSaveImageAsync() {
-    try {
-      const localUri = await captureRef(imageRef, {
-        height: 440,
-        quality: 1,
-      });
-      await MediaLibrary.saveToLibraryAsync(localUri);
+    if (Platform.OS !== "web") {
+      try {
+        const localUri = await captureRef(imageRef, {
+          height: 440,
+          quality: 1,
+        });
+        await MediaLibrary.saveToLibraryAsync(localUri);
 
-      if (localUri) {
-        alert("Image saved to camera roll!");
+        if (localUri) {
+          alert("Image saved to camera roll!");
+        }
+      } catch (error) {
+        console.log(error);
       }
-    } catch (error) {
-      console.log(error);
+    } else {
+      try {
+        if (imageRef.current) {
+          const dataUrl = await domtoimage.toJpeg(imageRef.current, {
+            quality: 0.95,
+            width: 320,
+            height: 440,
+          });
+
+          let link = document.createElement("a");
+          link.download = "sticker-smash.jpeg";
+          link.href = dataUrl;
+          link.click();
+        }
+      } catch (error) {
+        console.log(error);
+      }
     }
   }
 
@@ -74,7 +105,9 @@ export default function App() {
   }
 
   return (
-    <GestureHandlerRootView style={styles.container}>
+    <GestureHandlerRootView
+      style={[styles.container, { paddingTop: insets.top }]}
+    >
       <View style={styles.container}>
         <View ref={imageRef} collapsable={false}>
           <ImageViewer
@@ -113,7 +146,7 @@ export default function App() {
         <EmojiPicker isVisible={isModalVisible} onClose={onModalClose}>
           <EmojiList onSelect={setPickedEmoji} onCloseModal={onModalClose} />
         </EmojiPicker>
-        <StatusBar style="auto" />
+        <StatusBar style="light" />
       </View>
     </GestureHandlerRootView>
   );
@@ -137,8 +170,8 @@ const styles = StyleSheet.create({
   },
   footerContainer: {
     color: "#fff",
-    flex: 1,
     alignItems: "center",
+    justifyContent: "center",
   },
   optionsContainer: {
     position: "absolute",
@@ -149,3 +182,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
   },
 });
+
+export default function App() {
+  return (
+    <SafeAreaProvider>
+      <HomePage />
+    </SafeAreaProvider>
+  );
+}
